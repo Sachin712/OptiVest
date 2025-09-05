@@ -1,0 +1,37 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="30" cy="30" r="28" fill="url(#gradient)" stroke="url(#gradientStroke)" stroke-width="2"/>
+  
+  <!-- Main "O" letter -->
+  <text x="30" y="38" font-family="Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="white">O</text>
+  
+  <!-- Options chart line going up -->
+  <path d="M45 20 L55 15 L65 25 L75 20 L85 30" stroke="#10B981" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Small upward arrow -->
+  <path d="M80 25 L85 30 L80 35" stroke="#10B981" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Call option indicator (C) -->
+  <circle cx="95" cy="20" r="8" fill="#10B981" stroke="white" stroke-width="1"/>
+  <text x="95" y="25" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="white">C</text>
+  
+  <!-- Put option indicator (P) -->
+  <circle cx="95" cy="40" r="8" fill="#EF4444" stroke="white" stroke-width="1"/>
+  <text x="95" y="45" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="white">P</text>
+  
+  <!-- App name -->
+  <text x="120" y="25" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="currentColor">OptiVest</text>
+  <text x="120" y="42" font-family="Arial, sans-serif" font-size="12" font-weight="normal" fill="currentColor" opacity="0.7">Options Trading Ledger</text>
+  
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E40AF;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="gradientStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60A5FA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>
