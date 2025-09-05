@@ -93,8 +93,8 @@ export default function TradeDetailsModal({
 
     // Check if sell date is on or after earliest purchase date
     if (contractPurchases.length > 0) {
-      const earliestPurchaseDate = Math.min(...contractPurchases.map(p => p.purchase_date))
-      if (saleFormData.sell_date < earliestPurchaseDate) {
+      const earliestPurchaseDate = Math.min(...contractPurchases.map(p => new Date(p.purchase_date).getTime()))
+      if (new Date(saleFormData.sell_date).getTime() < earliestPurchaseDate) {
         alert('Sell date cannot be before the earliest purchase date.')
         return
       }
@@ -337,14 +337,14 @@ export default function TradeDetailsModal({
                   <input
                     type="date"
                     required
-                    min={contractPurchases.length > 0 ? Math.min(...contractPurchases.map(p => p.purchase_date)) : new Date().toISOString().split('T')[0]}
+                    min={contractPurchases.length > 0 ? contractPurchases.map(p => p.purchase_date).sort()[0] : new Date().toISOString().split('T')[0]}
                     max={new Date().toISOString().split('T')[0]}
                     value={saleFormData.sell_date}
                     onChange={(e) => setSaleFormData({ ...saleFormData, sell_date: e.target.value })}
                     className="input-field"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Between {contractPurchases.length > 0 ? Math.min(...contractPurchases.map(p => p.purchase_date)) : 'today'} and today
+                    Between {contractPurchases.length > 0 ? contractPurchases.map(p => p.purchase_date).sort()[0] : 'today'} and today
                   </p>
                 </div>
               </div>
