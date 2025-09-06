@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Trade, ContractPurchase, ContractSale } from '@/lib/supabase'
 import TradeRow from './TradeRow'
+import Pagination from './Pagination'
+import TradeFilters, { FilterState } from './TradeFilters'
 import { Edit, Trash2 } from 'lucide-react'
 
 interface TradeListProps {
@@ -11,12 +13,57 @@ interface TradeListProps {
   contractSales: ContractSale[]
   onTradeUpdated: () => void
   onTradeDeleted: () => void
+  currentPage: number
+  pageSize: number
+  totalTrades: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
 }
 
-export default function TradeList({ trades, contractPurchases, contractSales, onTradeUpdated, onTradeDeleted }: TradeListProps) {
+export default function TradeList({ 
+  trades, 
+  contractPurchases, 
+  contractSales, 
+  onTradeUpdated, 
+  onTradeDeleted,
+  currentPage,
+  pageSize,
+  totalTrades,
+  onPageChange,
+  onPageSizeChange
+}: TradeListProps) {
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null)
+  const [filters, setFilters] = useState<FilterState>({
+    selectedTickers: [],
+    selectedTypes: [],
+    selectedStatuses: []
+  })
 
-  if (trades.length === 0) {
+  // Apply filters to trades
+  const filteredTrades = useMemo(() => {
+    return trades.filter(trade => {
+      // Filter by ticker
+      if (filters.selectedTickers.length > 0 && !filters.selectedTickers.includes(trade.stock_ticker)) {
+        return false
+      }
+      
+      // Filter by type
+      if (filters.selectedTypes.length > 0 && !filters.selectedTypes.includes(trade.type)) {
+        return false
+      }
+      
+      // Filter by status
+      if (filters.selectedStatuses.length > 0 && !filters.selectedStatuses.includes(trade.status)) {
+        return false
+      }
+      
+      return true
+    })
+  }, [trades, filters])
+
+  const totalPages = Math.ceil(filteredTrades.length / pageSize)
+
+  if (trades.length === 0 && currentPage === 1) {
     return (
       <div className="card text-center py-12">
         <div className="text-gray-500 dark:text-gray-400">
@@ -28,13 +75,21 @@ export default function TradeList({ trades, contractPurchases, contractSales, on
   }
 
   return (
-    <div className="card">
+    <div className="card overflow-hidden">
       <div className="px-4 sm:px-6 lg:px-8">
+        {/* Filters */}
+        <TradeFilters trades={trades} onFiltersChange={setFilters} />
+        
         <div className="sm:flex sm:items-center">
           <div className="sm:flex-auto">
             <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">Trades</h3>
             <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
               A list of all your options trades and their current status. Click any row to view details and manage contracts.
+              {filteredTrades.length !== trades.length && (
+                <span className="text-blue-600 dark:text-blue-400">
+                  {' '}(Showing {filteredTrades.length} of {trades.length} trades)
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -71,7 +126,7 @@ export default function TradeList({ trades, contractPurchases, contractSales, on
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {trades.map((trade) => {
+                  {filteredTrades.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((trade) => {
                     const tradePurchases = contractPurchases.filter(p => p.trade_id === trade.id)
                     const tradeSales = contractSales.filter(s => s.trade_id === trade.id)
                     
@@ -98,6 +153,16 @@ export default function TradeList({ trades, contractPurchases, contractSales, on
             </div>
           </div>
         </div>
+        
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={onPageChange}
+          pageSize={pageSize}
+          totalItems={filteredTrades.length}
+          onPageSizeChange={onPageSizeChange}
+        />
       </div>
     </div>
   )

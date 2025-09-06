@@ -76,7 +76,7 @@ export default function AccountValueChart({ trades, contractPurchases, contractS
     return dates
   }
 
-  const calculateAccountValue = (date: Date): ChartDataPoint => {
+  const calculatePnLValue = (date: Date): ChartDataPoint => {
     const dateStr = date.toISOString().split('T')[0]
     
     // Filter purchases that occurred on or before this date
@@ -85,10 +85,16 @@ export default function AccountValueChart({ trades, contractPurchases, contractS
     // Filter contract sales that occurred on or before this date
     const salesUpToDate = contractSales.filter(sale => sale.sell_date <= dateStr)
     
-    // Calculate total investment (all purchases up to this date)
-    const totalInvestment = purchasesUpToDate.reduce((sum, purchase) => {
-      return sum + (purchase.purchase_price * purchase.contracts * 100) // 100 shares per contract
+    // Calculate total investment using: Total Purchases - Total Sales
+    const totalPurchases = purchasesUpToDate.reduce((sum, purchase) => {
+      return sum + (purchase.purchase_price * purchase.contracts * 100)
     }, 0)
+    
+    const totalSales = salesUpToDate.reduce((sum, sale) => {
+      return sum + (sale.sell_price * sale.contracts_sold * 100)
+    }, 0)
+    
+    const totalInvestment = totalPurchases - totalSales
     
     // Calculate realized P&L using weighted average purchase prices
     const realizedPnL = salesUpToDate.reduce((sum, sale) => {
@@ -132,23 +138,21 @@ export default function AccountValueChart({ trades, contractPurchases, contractS
     const { start, end } = getDateRange(selectedRange)
     const dates = generateDateRange(start, end)
     
-    return dates.map(date => calculateAccountValue(date))
+    return dates.map(date => calculatePnLValue(date))
   }, [selectedRange, trades, contractPurchases, contractSales])
 
   const formatTooltipValue = (value: number, name: string) => {
     const formattedValue = `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     
     switch (name) {
-      case 'totalValue':
-        return [formattedValue, 'Total Value']
+      case 'totalPnL':
+        return [formattedValue, 'Cumulative P&L']
       case 'totalInvestment':
-        return [formattedValue, 'Total Investment']
+        return [formattedValue, 'Active Investment']
       case 'realizedPnL':
         return [formattedValue, 'Realized P&L']
       case 'unrealizedPnL':
         return [formattedValue, 'Unrealized P&L']
-      case 'totalPnL':
-        return [formattedValue, 'Total P&L']
       default:
         return [formattedValue, name]
     }
@@ -172,10 +176,11 @@ export default function AccountValueChart({ trades, contractPurchases, contractS
   const getPerformanceIndicator = () => {
     if (chartData.length < 2) return null
     
-    const firstValue = chartData[0].totalValue
-    const lastValue = chartData[chartData.length - 1].totalValue
-    const change = lastValue - firstValue
-    const changePercent = firstValue > 0 ? (change / firstValue) * 100 : 0
+    const firstPnL = chartData[0].totalPnL
+    const lastPnL = chartData[chartData.length - 1].totalPnL
+    const change = lastPnL - firstPnL
+    // For P&L, we don't calculate percentage change the same way since P&L can start at 0
+    const changePercent = Math.abs(firstPnL) > 0 ? (change / Math.abs(firstPnL)) * 100 : 0
     
     return {
       change,
@@ -202,7 +207,7 @@ export default function AccountValueChart({ trades, contractPurchases, contractS
     <div className="card">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Account Performance</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Trading Performance</h3>
           {performance && (
             <div className="flex items-center mt-1">
               {performance.isPositive ? (
@@ -270,7 +275,7 @@ export default function AccountValueChart({ trades, contractPurchases, contractS
             />
             <Line 
               type="monotone" 
-              dataKey="totalValue" 
+              dataKey="totalPnL" 
               stroke="#3b82f6" 
               strokeWidth={2}
               dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}

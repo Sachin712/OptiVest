@@ -28,6 +28,7 @@
   /* Date input styling for dark mode */
   input[type="date"] {
     @apply text-gray-900 dark:text-white;
+    color-scheme: light dark;
   }
   
   input[type="date"]::-webkit-calendar-picker-indicator {
@@ -37,5 +38,17 @@
   
   .dark input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(1);
+  }
+  
+  /* Fix partial grey text in dark mode */
+  .dark input[type="date"] {
+    color: white !important;
+  }
+  
+  .dark input[type="date"]::-webkit-datetime-edit-text,
+  .dark input[type="date"]::-webkit-datetime-edit-month-field,
+  .dark input[type="date"]::-webkit-datetime-edit-day-field,
+  .dark input[type="date"]::-webkit-datetime-edit-year-field {
+    color: white !important;
   }
 }

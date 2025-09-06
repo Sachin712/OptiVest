@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { supabase, TradeFormData } from '@/lib/supabase'
+import { getCurrentDateLocal } from '@/lib/dateUtils'
+import { generateOptionName } from '@/lib/optionUtils'
 import { X } from 'lucide-react'
 
 interface AddTradeModalProps {
@@ -14,11 +16,13 @@ interface AddTradeModalProps {
 export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTradeModalProps) {
   const { user } = useUser()
   const [formData, setFormData] = useState<TradeFormData>({
-    option_name: '',
+    stock_ticker: '',
+    expiry_date: '',
+    strike_price: 0,
     type: 'CALL',
     contracts: 1,
     purchase_price: 0,
-    purchase_date: new Date().toISOString().split('T')[0],
+    purchase_date: getCurrentDateLocal(),
     notes: ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -27,8 +31,22 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
     e.preventDefault()
     if (!user) return
 
+    // Validate required fields
+    if (!formData.stock_ticker.trim()) {
+      alert('Stock ticker is required.')
+      return
+    }
+    if (!formData.expiry_date) {
+      alert('Expiry date is required.')
+      return
+    }
+    if (formData.strike_price <= 0) {
+      alert('Strike price must be greater than 0.')
+      return
+    }
+
     // Validate purchase date is not in the future
-    const today = new Date().toISOString().split('T')[0]
+    const today = getCurrentDateLocal()
     if (formData.purchase_date > today) {
       alert('Purchase date cannot be in the future.')
       return
@@ -36,12 +54,23 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
 
     setIsSubmitting(true)
     try {
+      // Generate option name from ticker, expiry, and strike
+      const optionName = generateOptionName(
+        formData.stock_ticker.toUpperCase(),
+        formData.expiry_date,
+        formData.strike_price,
+        formData.type
+      )
+
       // First, create the trade
       const { data: tradeData, error: tradeError } = await supabase
         .from('trades')
         .insert({
           user_id: user.id,
-          option_name: formData.option_name,
+          option_name: optionName,
+          stock_ticker: formData.stock_ticker.toUpperCase(),
+          expiry_date: formData.expiry_date,
+          strike_price: formData.strike_price,
           type: formData.type,
           status: 'open',
           created_at: new Date().toISOString(),
@@ -70,11 +99,13 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
 
       // Reset form
       setFormData({
-        option_name: '',
+        stock_ticker: '',
+        expiry_date: '',
+        strike_price: 0,
         type: 'CALL',
         contracts: 1,
         purchase_price: 0,
-        purchase_date: new Date().toISOString().split('T')[0],
+        purchase_date: getCurrentDateLocal(),
         notes: ''
       })
 
@@ -104,17 +135,49 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="option_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Option Name *
+              <label htmlFor="stock_ticker" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Stock Ticker *
               </label>
               <input
                 type="text"
-                id="option_name"
+                id="stock_ticker"
                 required
-                value={formData.option_name}
-                onChange={(e) => setFormData({ ...formData, option_name: e.target.value })}
+                value={formData.stock_ticker}
+                onChange={(e) => setFormData({ ...formData, stock_ticker: e.target.value.toUpperCase() })}
                 className="input-field"
-                placeholder="e.g., PEP Jun 18 '26 $180 Call"
+                placeholder="QQQ, SPXW, HOOD, etc."
+                maxLength={10}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="expiry_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Option Expiry *
+              </label>
+              <input
+                type="date"
+                id="expiry_date"
+                required
+                value={formData.expiry_date}
+                onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+                className="input-field"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="strike_price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Strike Price *
+              </label>
+              <input
+                type="number"
+                id="strike_price"
+                required
+                step="0.01"
+                min="0.01"
+                value={formData.strike_price}
+                onChange={(e) => setFormData({ ...formData, strike_price: parseFloat(e.target.value) || 0 })}
+                className="input-field"
+                placeholder="0.00"
               />
             </div>
 
@@ -180,7 +243,7 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
                 type="date"
                 id="purchase_date"
                 required
-                max={new Date().toISOString().split('T')[0]}
+                max={getCurrentDateLocal()}
                 value={formData.purchase_date}
                 onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })}
                 className="input-field"

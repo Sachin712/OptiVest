@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Trade, ContractSale, ContractPurchase } from '@/lib/supabase'
-import { TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Target, CheckCircle } from 'lucide-react'
 
 interface StatsCardsProps {
   trades: Trade[]
@@ -17,10 +17,16 @@ export default function StatsCards({ trades, contractPurchases, contractSales }:
     // Each options contract = 100 shares
     const CONTRACT_SIZE = 100
     
-    // Calculate total investment from all contract purchases
-    const totalInvestment = contractPurchases.reduce((sum, purchase) => {
+    // Calculate total investment using: Total Purchases - Total Sales
+    const totalPurchases = contractPurchases.reduce((sum, purchase) => {
       return sum + (purchase.purchase_price * purchase.contracts * CONTRACT_SIZE)
     }, 0)
+    
+    const totalSales = contractSales.reduce((sum, sale) => {
+      return sum + (sale.sell_price * sale.contracts_sold * CONTRACT_SIZE)
+    }, 0)
+    
+    const totalInvestment = totalPurchases - totalSales
 
     // Calculate P&L using weighted average purchase price
     const totalPnL = contractSales.reduce((sum, sale) => {
@@ -39,15 +45,40 @@ export default function StatsCards({ trades, contractPurchases, contractSales }:
       return sum + profit
     }, 0)
 
-    // Calculate success ratio based on closed trades
-    const closedTrades = trades.filter(trade => trade.status === 'closed')
-    const totalTrades = trades.length
-    const successRatio = totalTrades > 0 ? (closedTrades.length / totalTrades) * 100 : 0
+    // Calculate successful trades percentage
+    // A trade is considered successful if it has any sales and the overall P&L for that trade is positive
+    const tradesWithSales = trades.filter(trade => {
+      const tradeSales = contractSales.filter(s => s.trade_id === trade.id)
+      return tradeSales.length > 0
+    })
+
+    const profitableTrades = tradesWithSales.filter(trade => {
+      const tradePurchases = contractPurchases.filter(p => p.trade_id === trade.id)
+      const tradeSales = contractSales.filter(s => s.trade_id === trade.id)
+      
+      if (tradePurchases.length === 0 || tradeSales.length === 0) return false
+      
+      // Calculate total P&L for this trade
+      const totalContracts = tradePurchases.reduce((sum, p) => sum + p.contracts, 0)
+      const weightedAvgPrice = tradePurchases.reduce((sum, p) => 
+        sum + (p.purchase_price * p.contracts), 0) / totalContracts
+      
+      const tradePnL = tradeSales.reduce((sum, sale) => {
+        const profit = (sale.sell_price - weightedAvgPrice) * sale.contracts_sold * CONTRACT_SIZE
+        return sum + profit
+      }, 0)
+      
+      return tradePnL > 0
+    })
+
+    const successfulTradesPercentage = tradesWithSales.length > 0 
+      ? (profitableTrades.length / tradesWithSales.length) * 100 
+      : 0
 
     return {
       totalInvestment: totalInvestment.toFixed(2),
       totalPnL: totalPnL.toFixed(2),
-      successRatio: successRatio.toFixed(1),
+      successfulTradesPercentage: successfulTradesPercentage.toFixed(1),
       isPnLPositive: totalPnL >= 0
     }
   }
@@ -74,20 +105,22 @@ export default function StatsCards({ trades, contractPurchases, contractSales }:
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {/* Total Investment */}
+      {/* Successful Trades */}
       <div className="card">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-blue-600" />
+            <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
           </div>
           <div className="ml-4">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Investment</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Successful Trades</p>
             <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-              ${stats.totalInvestment}
+              {stats.successfulTradesPercentage}%
             </p>
-            {/* <p className="text-xs text-gray-500 dark:text-gray-400">(100 shares per contract)</p> */}
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Profitable trades with sales
+            </p>
           </div>
         </div>
       </div>
@@ -118,18 +151,21 @@ export default function StatsCards({ trades, contractPurchases, contractSales }:
         </div>
       </div>
 
-      {/* Success Ratio */}
+      {/* Total Trades */}
       <div className="card">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Target className="w-5 h-5 text-purple-600" />
+            <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
+              <Target className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
           <div className="ml-4">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Closed Trades</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Trades</p>
             <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {stats.successRatio}%
+              {trades.length}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Active and closed trades
             </p>
           </div>
         </div>

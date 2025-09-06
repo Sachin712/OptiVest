@@ -9,6 +9,9 @@ export interface Trade {
   id: string
   user_id: string
   option_name: string
+  stock_ticker: string
+  expiry_date: string
+  strike_price: number
   type: 'CALL' | 'PUT'
   status: 'open' | 'closed'
   created_at: string
@@ -47,7 +50,9 @@ export interface TradeWithPurchases extends Trade {
 }
 
 export interface TradeFormData {
-  option_name: string
+  stock_ticker: string
+  expiry_date: string
+  strike_price: number
   type: 'CALL' | 'PUT'
   contracts: number
   purchase_price: number

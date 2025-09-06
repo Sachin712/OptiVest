@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { Trade, ContractSale, ContractPurchase, supabase } from '@/lib/supabase'
+import { getCurrentDateLocal } from '@/lib/dateUtils'
+import { generateOptionName } from '@/lib/optionUtils'
 import { Edit, Trash2, Eye, Plus } from 'lucide-react'
 import TradeDetailsModal from './TradeDetailsModal'
 
@@ -29,7 +31,9 @@ export default function TradeRow({
   onTradeUpdated
 }: TradeRowProps) {
   const [formData, setFormData] = useState({
-    option_name: trade.option_name,
+    stock_ticker: trade.stock_ticker || '',
+    expiry_date: trade.expiry_date || '',
+    strike_price: trade.strike_price || 0,
     type: trade.type,
   })
   const [showDetails, setShowDetails] = useState(false)
@@ -37,7 +41,7 @@ export default function TradeRow({
   const [purchaseFormData, setPurchaseFormData] = useState({
     contracts: 1,
     purchase_price: 0,
-    purchase_date: new Date().toISOString().split('T')[0],
+    purchase_date: getCurrentDateLocal(),
     notes: ''
   })
 
@@ -81,10 +85,21 @@ export default function TradeRow({
 
   const handleSave = async () => {
     try {
+      // Generate new option name from updated fields
+      const optionName = generateOptionName(
+        formData.stock_ticker.toUpperCase(),
+        formData.expiry_date,
+        formData.strike_price,
+        formData.type
+      )
+
       const { error } = await supabase
         .from('trades')
         .update({
-          option_name: formData.option_name,
+          option_name: optionName,
+          stock_ticker: formData.stock_ticker.toUpperCase(),
+          expiry_date: formData.expiry_date,
+          strike_price: formData.strike_price,
           type: formData.type,
           updated_at: new Date().toISOString()
         })
@@ -116,7 +131,7 @@ export default function TradeRow({
   const handleAddPurchase = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const today = new Date().toISOString().split('T')[0]
+    const today = getCurrentDateLocal()
     if (purchaseFormData.purchase_date > today) {
       alert('Purchase date cannot be in the future.')
       return
@@ -139,7 +154,7 @@ export default function TradeRow({
       setPurchaseFormData({
         contracts: 1,
         purchase_price: 0,
-        purchase_date: new Date().toISOString().split('T')[0],
+        purchase_date: getCurrentDateLocal(),
         notes: ''
       })
       setShowAddPurchase(false)
@@ -155,9 +170,30 @@ export default function TradeRow({
         <td className="py-4 pl-4 pr-3 sm:pl-0">
           <input
             type="text"
-            value={formData.option_name}
-            onChange={(e) => setFormData({ ...formData, option_name: e.target.value })}
+            value={formData.stock_ticker}
+            onChange={(e) => setFormData({ ...formData, stock_ticker: e.target.value.toUpperCase() })}
             className="input-field text-sm"
+            placeholder="Ticker"
+            maxLength={10}
+          />
+        </td>
+        <td className="px-3 py-4">
+          <input
+            type="date"
+            value={formData.expiry_date}
+            onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+            className="input-field text-sm"
+          />
+        </td>
+        <td className="px-3 py-4">
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={formData.strike_price}
+            onChange={(e) => setFormData({ ...formData, strike_price: parseFloat(e.target.value) || 0 })}
+            className="input-field text-sm"
+            placeholder="0.00"
           />
         </td>
         <td className="px-3 py-4">
@@ -351,7 +387,7 @@ export default function TradeRow({
                   <input
                     type="date"
                     required
-                    max={new Date().toISOString().split('T')[0]}
+                    max={getCurrentDateLocal()}
                     value={purchaseFormData.purchase_date}
                     onChange={(e) => setPurchaseFormData({ ...purchaseFormData, purchase_date: e.target.value })}
                     className="input-field"

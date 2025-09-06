@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Trade, ContractSale, ContractPurchase, supabase, ContractSaleFormData } from '@/lib/supabase'
+import { getCurrentDateLocal } from '@/lib/dateUtils'
 import { X, Plus, TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react'
 
 interface TradeDetailsModalProps {
@@ -25,13 +26,13 @@ export default function TradeDetailsModal({
   const [saleFormData, setSaleFormData] = useState<ContractSaleFormData>({
     contracts_sold: 1,
     sell_price: 0,
-    sell_date: new Date().toISOString().split('T')[0]
+    sell_date: getCurrentDateLocal()
   })
 
   useEffect(() => {
     if (isOpen && trade) {
       // Always default to today's date
-      const today = new Date().toISOString().split('T')[0]
+      const today = getCurrentDateLocal()
       setSaleFormData(prev => ({
         ...prev,
         sell_date: today
@@ -85,7 +86,7 @@ export default function TradeDetailsModal({
       return
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getCurrentDateLocal()
     if (saleFormData.sell_date > today) {
       alert('Sell date cannot be in the future.')
       return
@@ -112,11 +113,29 @@ export default function TradeDetailsModal({
 
       if (error) throw error
       
+      // Check if all contracts are sold and auto-close the trade
+      const currentStats = calculateTradeStats()
+      const remainingAfterSale = currentStats.remaining - saleFormData.contracts_sold
+      
+      if (remainingAfterSale === 0 && trade.status === 'open') {
+        const { error: updateError } = await supabase
+          .from('trades')
+          .update({ 
+            status: 'closed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', trade.id)
+        
+        if (updateError) {
+          console.error('Error updating trade status:', updateError)
+        }
+      }
+      
       // Reset form
       setSaleFormData({
         contracts_sold: 1,
         sell_price: 0,
-        sell_date: new Date().toISOString().split('T')[0]
+        sell_date: getCurrentDateLocal()
       })
       setIsAddingSale(false)
       onTradeUpdated()
@@ -337,8 +356,8 @@ export default function TradeDetailsModal({
                   <input
                     type="date"
                     required
-                    min={contractPurchases.length > 0 ? contractPurchases.map(p => p.purchase_date).sort()[0] : new Date().toISOString().split('T')[0]}
-                    max={new Date().toISOString().split('T')[0]}
+                    min={contractPurchases.length > 0 ? contractPurchases.map(p => p.purchase_date).sort()[0] : getCurrentDateLocal()}
+                    max={getCurrentDateLocal()}
                     value={saleFormData.sell_date}
                     onChange={(e) => setSaleFormData({ ...saleFormData, sell_date: e.target.value })}
                     className="input-field"
