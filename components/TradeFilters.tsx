@@ -27,9 +27,9 @@ export default function TradeFilters({ trades, onFiltersChange }: TradeFiltersPr
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Get unique values for filter options
-  const uniqueTickers = [...new Set(trades.map(trade => trade.stock_ticker))].sort()
-  const uniqueTypes = [...new Set(trades.map(trade => trade.type))] as ('CALL' | 'PUT')[]
-  const uniqueStatuses = [...new Set(trades.map(trade => trade.status))] as ('open' | 'closed')[]
+  const uniqueTickers = Array.from(new Set(trades.map(trade => trade.stock_ticker))).sort()
+  const uniqueTypes = Array.from(new Set(trades.map(trade => trade.type))) as ('CALL' | 'PUT')[]
+  const uniqueStatuses = Array.from(new Set(trades.map(trade => trade.status))) as ('open' | 'closed')[]
 
   const updateFilters = (newFilters: Partial<FilterState>) => {
     const updatedFilters = { ...filters, ...newFilters }
