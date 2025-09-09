@@ -1,15 +1,14 @@
 /**
  * Generate option name from ticker, expiry date, and strike price
- * Format: HOOD Sep 26 '25 $110 Call
+ * Format: HOOD Sep 26 '25 $110
  */
 export function generateOptionName(
   ticker: string, 
   expiryDate: string, 
-  strikePrice: number, 
-  type: 'CALL' | 'PUT'
+  strikePrice: number
 ): string {
-  // Parse the expiry date
-  const date = new Date(expiryDate)
+  // Parse the expiry date - add 'T00:00:00' to avoid timezone issues
+  const date = new Date(expiryDate + 'T00:00:00')
   
   // Format month as abbreviated name
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -25,7 +24,7 @@ export function generateOptionName(
   // Format strike price (remove decimals if .00)
   const strike = strikePrice % 1 === 0 ? strikePrice.toString() : strikePrice.toFixed(2)
   
-  return `${ticker} ${month} ${day} '${year} $${strike} ${type}`
+  return `${ticker} ${month} ${day} '${year} $${strike}`
 }
 
 /**
@@ -36,14 +35,13 @@ export function parseOptionName(optionName: string): {
   ticker: string
   expiryDate: string
   strikePrice: number
-  type: 'CALL' | 'PUT'
 } | null {
-  // Regex to match format: TICKER Month DD 'YY $Price Type
-  const match = optionName.match(/^([A-Z]+)\s+([A-Za-z]+)\s+(\d+)\s+'(\d{2})\s+\$(\d+(?:\.\d{2})?)\s+(CALL|PUT)$/)
+  // Regex to match format: TICKER Month DD 'YY $Price
+  const match = optionName.match(/^([A-Z]+)\s+([A-Za-z]+)\s+(\d+)\s+'(\d{2})\s+\$(\d+(?:\.\d{2})?)$/)
   
   if (!match) return null
   
-  const [, ticker, month, day, year, strike, type] = match
+  const [, ticker, month, day, year, strike] = match
   
   // Convert month name to month number
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -54,14 +52,13 @@ export function parseOptionName(optionName: string): {
   // Convert 2-digit year to 4-digit
   const fullYear = parseInt('20' + year)
   
-  // Create date string
+  // Create date string - add 'T00:00:00' to avoid timezone issues
   const date = new Date(fullYear, monthIndex, parseInt(day))
   const expiryDate = date.toISOString().split('T')[0]
   
   return {
     ticker,
     expiryDate,
-    strikePrice: parseFloat(strike),
-    type: type as 'CALL' | 'PUT'
+    strikePrice: parseFloat(strike)
   }
 }

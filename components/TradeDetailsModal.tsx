@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { Trade, ContractSale, ContractPurchase, supabase, ContractSaleFormData } from '@/lib/supabase'
 import { getCurrentDateLocal } from '@/lib/dateUtils'
+import { getBrokerOptions } from '@/lib/brokerConfig'
+import { calculateTradeStatsWithFees } from '@/lib/pnlUtils'
+import { BROKER_FEES } from '@/lib/brokerConfig'
 import { X, Plus, TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react'
 
 interface TradeDetailsModalProps {
@@ -23,10 +26,18 @@ export default function TradeDetailsModal({
   onTradeUpdated 
 }: TradeDetailsModalProps) {
   const [isAddingSale, setIsAddingSale] = useState(false)
+
+  // Helper function to calculate trade fees
+  const calculateTradeFees = (broker: string, contracts: number): number => {
+    const fee = BROKER_FEES.find(f => f.broker === broker)
+    if (!fee) return 0
+    return fee.contractFee * contracts
+  }
   const [saleFormData, setSaleFormData] = useState<ContractSaleFormData>({
     contracts_sold: 1,
     sell_price: 0,
-    sell_date: getCurrentDateLocal()
+    sell_date: getCurrentDateLocal(),
+    broker: trade.broker || 'Webull'
   })
 
   useEffect(() => {
@@ -41,39 +52,7 @@ export default function TradeDetailsModal({
   }, [isOpen, trade])
 
   const calculateTradeStats = () => {
-    const CONTRACT_SIZE = 100
-    
-    // Calculate total contracts from all purchases
-    const totalContracts = contractPurchases.reduce((sum, purchase) => sum + purchase.contracts, 0)
-    
-    // Calculate weighted average purchase price
-    const totalInvestment = contractPurchases.reduce((sum, purchase) => 
-      sum + (purchase.purchase_price * purchase.contracts), 0)
-    const weightedAvgPrice = totalContracts > 0 ? totalInvestment / totalContracts : 0
-    
-    // Calculate total contracts sold
-    const totalSold = contractSales.reduce((sum, sale) => sum + sale.contracts_sold, 0)
-    const remaining = totalContracts - totalSold
-    
-    // Calculate P&L using weighted average price
-    const totalPnL = contractSales.reduce((sum, sale) => {
-      const profit = (sale.sell_price - weightedAvgPrice) * sale.contracts_sold * CONTRACT_SIZE
-      return sum + profit
-    }, 0)
-    
-    // Calculate average sell price
-    const totalSellValue = contractSales.reduce((sum, sale) => 
-      sum + (sale.sell_price * sale.contracts_sold), 0)
-    const averageSellPrice = totalSold > 0 ? totalSellValue / totalSold : 0
-
-    return {
-      totalContracts,
-      weightedAvgPrice,
-      totalSold,
-      remaining,
-      totalPnL,
-      averageSellPrice
-    }
+    return calculateTradeStatsWithFees(trade, contractPurchases, contractSales)
   }
 
   const stats = calculateTradeStats()
@@ -108,7 +87,8 @@ export default function TradeDetailsModal({
           trade_id: trade.id,
           contracts_sold: saleFormData.contracts_sold,
           sell_price: saleFormData.sell_price,
-          sell_date: saleFormData.sell_date
+          sell_date: saleFormData.sell_date,
+          broker: saleFormData.broker
         })
 
       if (error) throw error
@@ -135,7 +115,8 @@ export default function TradeDetailsModal({
       setSaleFormData({
         contracts_sold: 1,
         sell_price: 0,
-        sell_date: getCurrentDateLocal()
+        sell_date: getCurrentDateLocal(),
+        broker: trade.broker || 'Webull'
       })
       setIsAddingSale(false)
       onTradeUpdated()
@@ -210,9 +191,9 @@ export default function TradeDetailsModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${
-                stats.totalPnL >= 0 ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'
+                stats.netPnL >= 0 ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'
               }`}>
-                {stats.totalPnL >= 0 ? (
+                {stats.netPnL >= 0 ? (
                   <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
                 ) : (
                   <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
@@ -221,10 +202,15 @@ export default function TradeDetailsModal({
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total P&L</p>
                 <p className={`text-xl font-semibold ${
-                  stats.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                  stats.netPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                 }`}>
-                  {stats.totalPnL >= 0 ? '+' : ''}${stats.totalPnL.toFixed(2)}
+                  {stats.netPnL >= 0 ? '+' : ''}${stats.netPnL.toFixed(2)}
                 </p>
+                {stats.totalFees > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    (fees: ${stats.totalFees.toFixed(2)})
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center">
@@ -351,6 +337,21 @@ export default function TradeDetailsModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Broker *
+                  </label>
+                  <select
+                    required
+                    value={saleFormData.broker}
+                    onChange={(e) => setSaleFormData({ ...saleFormData, broker: e.target.value })}
+                    className="input-field"
+                  >
+                    {getBrokerOptions().map(broker => (
+                      <option key={broker} value={broker}>{broker}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Sell Date *
                   </label>
                   <input
@@ -417,7 +418,30 @@ export default function TradeDetailsModal({
                   {contractSales.map((sale) => {
                     const CONTRACT_SIZE = 100
                     const proceeds = sale.contracts_sold * sale.sell_price * CONTRACT_SIZE
-                    const salePnL = (sale.sell_price - stats.weightedAvgPrice) * sale.contracts_sold * CONTRACT_SIZE
+                    
+                    // Calculate weighted average price at the time of this sale
+                    const purchasesUpToSale = contractPurchases.filter(p => p.purchase_date <= sale.sell_date)
+                    const totalContractsUpToSale = purchasesUpToSale.reduce((sum, p) => sum + p.contracts, 0)
+                    const totalInvestmentUpToSale = purchasesUpToSale.reduce((sum, p) => 
+                      sum + (p.purchase_price * p.contracts), 0)
+                    const weightedAvgPriceAtSale = totalContractsUpToSale > 0 ? 
+                      totalInvestmentUpToSale / totalContractsUpToSale : 0
+                    
+                    const grossSalePnL = (sale.sell_price - weightedAvgPriceAtSale) * sale.contracts_sold * CONTRACT_SIZE
+                    
+                    // Calculate fees for this specific sale
+                    const saleFees = calculateTradeFees(sale.broker, sale.contracts_sold)
+                    
+                    // Calculate proportional purchase fees for the contracts being sold
+                    const proportionalPurchaseFees = purchasesUpToSale.reduce((sum, purchase) => {
+                      const purchaseFees = calculateTradeFees(purchase.broker, purchase.contracts)
+                      // Calculate the proportion of this purchase that's being sold
+                      const proportion = sale.contracts_sold / totalContractsUpToSale
+                      return sum + (purchaseFees * proportion)
+                    }, 0)
+                    
+                    const totalFeesForSale = saleFees + proportionalPurchaseFees
+                    const salePnL = grossSalePnL - totalFeesForSale
                     return (
                       <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -438,6 +462,11 @@ export default function TradeDetailsModal({
                           }`}>
                             {salePnL >= 0 ? '+' : ''}${salePnL.toFixed(2)}
                           </span>
+                          {totalFeesForSale > 0 && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              (fees: ${totalFeesForSale.toFixed(2)})
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )

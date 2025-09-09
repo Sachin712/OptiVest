@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { Trade, ContractSale, ContractPurchase, supabase } from '@/lib/supabase'
 import { getCurrentDateLocal } from '@/lib/dateUtils'
 import { generateOptionName } from '@/lib/optionUtils'
+import { calculateTradeStatsWithFees, TradeStats } from '@/lib/pnlUtils'
+import { getBrokerOptions } from '@/lib/brokerConfig'
 import { Edit, Trash2, Eye, Plus } from 'lucide-react'
 import TradeDetailsModal from './TradeDetailsModal'
 
@@ -35,6 +37,7 @@ export default function TradeRow({
     expiry_date: trade.expiry_date || '',
     strike_price: trade.strike_price || 0,
     type: trade.type,
+    broker: trade.broker || 'Webull',
   })
   const [showDetails, setShowDetails] = useState(false)
   const [showAddPurchase, setShowAddPurchase] = useState(false)
@@ -42,43 +45,12 @@ export default function TradeRow({
     contracts: 1,
     purchase_price: 0,
     purchase_date: getCurrentDateLocal(),
-    notes: ''
+    notes: '',
+    broker: trade.broker || 'Webull'
   })
 
-  const calculateTradeStats = () => {
-    const CONTRACT_SIZE = 100
-    
-    // Calculate total contracts from all purchases
-    const totalContracts = contractPurchases.reduce((sum, purchase) => sum + purchase.contracts, 0)
-    
-    // Calculate weighted average purchase price
-    const totalInvestment = contractPurchases.reduce((sum, purchase) => 
-      sum + (purchase.purchase_price * purchase.contracts), 0)
-    const weightedAvgPrice = totalContracts > 0 ? totalInvestment / totalContracts : 0
-    
-    // Calculate total contracts sold
-    const totalSold = contractSales.reduce((sum, sale) => sum + sale.contracts_sold, 0)
-    const remaining = totalContracts - totalSold
-    
-    // Calculate P&L using weighted average price
-    const totalPnL = contractSales.reduce((sum, sale) => {
-      const profit = (sale.sell_price - weightedAvgPrice) * sale.contracts_sold * CONTRACT_SIZE
-      return sum + profit
-    }, 0)
-    
-    // Calculate average sell price
-    const totalSellValue = contractSales.reduce((sum, sale) => 
-      sum + (sale.sell_price * sale.contracts_sold), 0)
-    const averageSellPrice = totalSold > 0 ? totalSellValue / totalSold : 0
-
-    return {
-      totalContracts,
-      weightedAvgPrice,
-      totalSold,
-      remaining,
-      totalPnL,
-      averageSellPrice
-    }
+  const calculateTradeStats = (): TradeStats => {
+    return calculateTradeStatsWithFees(trade, contractPurchases, contractSales)
   }
 
   const stats = calculateTradeStats()
@@ -89,8 +61,7 @@ export default function TradeRow({
       const optionName = generateOptionName(
         formData.stock_ticker.toUpperCase(),
         formData.expiry_date,
-        formData.strike_price,
-        formData.type
+        formData.strike_price
       )
 
       const { error } = await supabase
@@ -101,6 +72,7 @@ export default function TradeRow({
           expiry_date: formData.expiry_date,
           strike_price: formData.strike_price,
           type: formData.type,
+          broker: formData.broker,
           updated_at: new Date().toISOString()
         })
         .eq('id', trade.id)
@@ -145,7 +117,8 @@ export default function TradeRow({
           contracts: purchaseFormData.contracts,
           purchase_price: purchaseFormData.purchase_price,
           purchase_date: purchaseFormData.purchase_date,
-          notes: purchaseFormData.notes
+          notes: purchaseFormData.notes,
+          broker: purchaseFormData.broker
         })
 
       if (error) throw error
@@ -155,7 +128,8 @@ export default function TradeRow({
         contracts: 1,
         purchase_price: 0,
         purchase_date: getCurrentDateLocal(),
-        notes: ''
+        notes: '',
+        broker: trade.broker || 'Webull'
       })
       setShowAddPurchase(false)
       onTradeUpdated()
@@ -206,6 +180,17 @@ export default function TradeRow({
             <option value="PUT">PUT</option>
           </select>
         </td>
+        <td className="px-3 py-4">
+          <select
+            value={formData.broker}
+            onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
+            className="input-field text-sm"
+          >
+            {getBrokerOptions().map(broker => (
+              <option key={broker} value={broker}>{broker}</option>
+            ))}
+          </select>
+        </td>
         <td className="px-3 py-4 text-sm text-gray-900 dark:text-white">
           {stats.totalContracts}
         </td>
@@ -216,7 +201,7 @@ export default function TradeRow({
           {stats.totalSold > 0 ? (
             <span>{stats.totalSold} sold, {stats.remaining} remaining</span>
           ) : (
-            <span className="text-gray-400 dark:text-gray-500">All open</span>
+            <span className="text-gray-600 dark:text-white">All open</span>
           )}
         </td>
         <td className="px-3 py-4">
@@ -230,12 +215,17 @@ export default function TradeRow({
         </td>
         <td className="px-3 py-4">
           <span className={`text-sm font-medium ${
-            stats.totalPnL >= 0 
+            stats.netPnL >= 0 
               ? 'text-green-600 dark:text-green-400' 
               : 'text-red-600 dark:text-red-400'
           }`}>
-            {stats.totalPnL >= 0 ? '+' : ''}${stats.totalPnL.toFixed(2)}
+            {stats.netPnL >= 0 ? '+' : ''}${stats.netPnL.toFixed(2)}
           </span>
+          {stats.totalFees > 0 && (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              (fees: ${stats.totalFees.toFixed(2)})
+            </div>
+          )}
         </td>
         <td className="px-3 py-4">
           <div className="flex space-x-2">
@@ -285,7 +275,7 @@ export default function TradeRow({
           {stats.totalSold > 0 ? (
             <span>{stats.totalSold} sold, {stats.remaining} remaining</span>
           ) : (
-            <span className="text-gray-400 dark:text-gray-500">All open</span>
+            <span className="text-gray-600 dark:text-white">All open</span>
           )}
         </td>
         <td className="px-3 py-4">
@@ -299,12 +289,17 @@ export default function TradeRow({
         </td>
         <td className="px-3 py-4">
           <span className={`text-sm font-medium ${
-            stats.totalPnL >= 0 
+            stats.netPnL >= 0 
               ? 'text-green-600 dark:text-green-400' 
               : 'text-red-600 dark:text-red-400'
           }`}>
-            {stats.totalPnL >= 0 ? '+' : ''}${stats.totalPnL.toFixed(2)}
+            {stats.netPnL >= 0 ? '+' : ''}${stats.netPnL.toFixed(2)}
           </span>
+          {stats.totalFees > 0 && (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              (fees: ${stats.totalFees.toFixed(2)})
+            </div>
+          )}
         </td>
         <td className="px-3 py-4">
           <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>

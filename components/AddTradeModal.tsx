@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs'
 import { supabase, TradeFormData } from '@/lib/supabase'
 import { getCurrentDateLocal } from '@/lib/dateUtils'
 import { generateOptionName } from '@/lib/optionUtils'
+import { getBrokerOptions } from '@/lib/brokerConfig'
 import { X } from 'lucide-react'
 
 interface AddTradeModalProps {
@@ -23,7 +24,8 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
     contracts: 1,
     purchase_price: 0,
     purchase_date: getCurrentDateLocal(),
-    notes: ''
+    notes: '',
+    broker: 'Webull'
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -58,8 +60,7 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
       const optionName = generateOptionName(
         formData.stock_ticker.toUpperCase(),
         formData.expiry_date,
-        formData.strike_price,
-        formData.type
+        formData.strike_price
       )
 
       // First, create the trade
@@ -73,6 +74,7 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
           strike_price: formData.strike_price,
           type: formData.type,
           status: 'open',
+          broker: formData.broker,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -91,6 +93,7 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
           purchase_price: formData.purchase_price,
           purchase_date: formData.purchase_date,
           notes: formData.notes,
+          broker: formData.broker,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -106,7 +109,8 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
         contracts: 1,
         purchase_price: 0,
         purchase_date: getCurrentDateLocal(),
-        notes: ''
+        notes: '',
+        broker: 'Webull'
       })
 
       onTradeAdded()
@@ -194,6 +198,23 @@ export default function AddTradeModal({ isOpen, onClose, onTradeAdded }: AddTrad
               >
                 <option value="CALL">CALL</option>
                 <option value="PUT">PUT</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="broker" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Broker *
+              </label>
+              <select
+                id="broker"
+                required
+                value={formData.broker}
+                onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
+                className="input-field"
+              >
+                {getBrokerOptions().map(broker => (
+                  <option key={broker} value={broker}>{broker}</option>
+                ))}
               </select>
             </div>
 

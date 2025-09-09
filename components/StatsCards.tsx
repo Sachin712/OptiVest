@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Trade, ContractSale, ContractPurchase } from '@/lib/supabase'
+import { calculatePortfolioStatsWithFees } from '@/lib/pnlUtils'
 import { TrendingUp, TrendingDown, DollarSign, Target, CheckCircle } from 'lucide-react'
 
 interface StatsCardsProps {
@@ -14,73 +15,7 @@ export default function StatsCards({ trades, contractPurchases, contractSales }:
   const [isLoading, setIsLoading] = useState(false)
 
   const calculateStats = () => {
-    // Each options contract = 100 shares
-    const CONTRACT_SIZE = 100
-    
-    // Calculate total investment using: Total Purchases - Total Sales
-    const totalPurchases = contractPurchases.reduce((sum, purchase) => {
-      return sum + (purchase.purchase_price * purchase.contracts * CONTRACT_SIZE)
-    }, 0)
-    
-    const totalSales = contractSales.reduce((sum, sale) => {
-      return sum + (sale.sell_price * sale.contracts_sold * CONTRACT_SIZE)
-    }, 0)
-    
-    const totalInvestment = totalPurchases - totalSales
-
-    // Calculate P&L using weighted average purchase price
-    const totalPnL = contractSales.reduce((sum, sale) => {
-      // Find all purchases for this trade
-      const tradePurchases = contractPurchases.filter(p => p.trade_id === sale.trade_id)
-      
-      if (tradePurchases.length === 0) return sum
-      
-      // Calculate weighted average purchase price for this trade
-      const totalContracts = tradePurchases.reduce((sum, p) => sum + p.contracts, 0)
-      const weightedAvgPrice = tradePurchases.reduce((sum, p) => 
-        sum + (p.purchase_price * p.contracts), 0) / totalContracts
-      
-      // P&L = (sell_price - weighted_avg_price) × contracts_sold × 100 shares per contract
-      const profit = (sale.sell_price - weightedAvgPrice) * sale.contracts_sold * CONTRACT_SIZE
-      return sum + profit
-    }, 0)
-
-    // Calculate successful trades percentage
-    // A trade is considered successful if it has any sales and the overall P&L for that trade is positive
-    const tradesWithSales = trades.filter(trade => {
-      const tradeSales = contractSales.filter(s => s.trade_id === trade.id)
-      return tradeSales.length > 0
-    })
-
-    const profitableTrades = tradesWithSales.filter(trade => {
-      const tradePurchases = contractPurchases.filter(p => p.trade_id === trade.id)
-      const tradeSales = contractSales.filter(s => s.trade_id === trade.id)
-      
-      if (tradePurchases.length === 0 || tradeSales.length === 0) return false
-      
-      // Calculate total P&L for this trade
-      const totalContracts = tradePurchases.reduce((sum, p) => sum + p.contracts, 0)
-      const weightedAvgPrice = tradePurchases.reduce((sum, p) => 
-        sum + (p.purchase_price * p.contracts), 0) / totalContracts
-      
-      const tradePnL = tradeSales.reduce((sum, sale) => {
-        const profit = (sale.sell_price - weightedAvgPrice) * sale.contracts_sold * CONTRACT_SIZE
-        return sum + profit
-      }, 0)
-      
-      return tradePnL > 0
-    })
-
-    const successfulTradesPercentage = tradesWithSales.length > 0 
-      ? (profitableTrades.length / tradesWithSales.length) * 100 
-      : 0
-
-    return {
-      totalInvestment: totalInvestment.toFixed(2),
-      totalPnL: totalPnL.toFixed(2),
-      successfulTradesPercentage: successfulTradesPercentage.toFixed(1),
-      isPnLPositive: totalPnL >= 0
-    }
+    return calculatePortfolioStatsWithFees(trades, contractPurchases, contractSales)
   }
 
   const stats = calculateStats()
@@ -144,9 +79,8 @@ export default function StatsCards({ trades, contractPurchases, contractSales }:
             <p className={`text-2xl font-semibold ${
               stats.isPnLPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
             }`}>
-              {stats.isPnLPositive ? '+' : ''}${stats.totalPnL}
+              {stats.isPnLPositive ? '+' : ''}${stats.netPnL}
             </p>
-            {/* <p className="text-xs text-gray-500">(100 shares per contract)</p> */}
           </div>
         </div>
       </div>

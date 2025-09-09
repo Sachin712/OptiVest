@@ -14,6 +14,7 @@ export interface Trade {
   strike_price: number
   type: 'CALL' | 'PUT'
   status: 'open' | 'closed'
+  broker: string
   created_at: string
   updated_at: string
 }
@@ -25,6 +26,7 @@ export interface ContractPurchase {
   purchase_price: number
   purchase_date: string
   notes?: string
+  broker: string
   created_at: string
   updated_at: string
 }
@@ -35,6 +37,7 @@ export interface ContractSale {
   contracts_sold: number
   sell_price: number
   sell_date: string
+  broker: string
   created_at: string
 }
 
@@ -58,6 +61,7 @@ export interface TradeFormData {
   purchase_price: number
   purchase_date: string
   notes?: string
+  broker: string
 }
 
 export interface ContractPurchaseFormData {
@@ -71,6 +75,7 @@ export interface ContractSaleFormData {
   contracts_sold: number
   sell_price: number
   sell_date: string
+  broker: string
 }
 
 export interface SupportTicket {
